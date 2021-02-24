@@ -147,7 +147,7 @@ That's where we need to think about the particular application we are working on
 
 It's always a good idea to A/B the performance of an applications queries when deciding to add/remove indexes, and SeeQR and other database management tools make that job a lot easier.
 
-Keep in mind that PostgreSQL has many other mechanisms for optimization we are ignoring here. You might notice for example that if you repeatedly run these queries while testing their execution time might lower for example. This test is just supposed to give us a rough estimate of the potential gains of indexing a column so we are not taking caching into consideration since that would warrant an entirely different article.
+Keep in mind that PostgreSQL has many other mechanisms for optimization that I am ignoring here. You might notice for example if you repeatedly run these queries while testing their execution time, the results may vary. Also, I am not taking caching into consideration since that would warrant an entirely different article. The tests here are aimed to give a rough estimate of the potential gains of indexing a column.
 
 If you'd like to know more about SeeQR and contribute to it's development, visit it's repository at 
 https://github.com/open-source-labs/SeeQR. If you'd like more information about Indexes and the inner workings of PostgreSQL the https://www.postgresql.org/docs/current/ is a great place to start.

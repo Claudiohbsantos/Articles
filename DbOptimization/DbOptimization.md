@@ -50,37 +50,26 @@ We can create a simple index with the following query:
 CREATE INDEX players_id_index ON players (id);
 ```
 
-By default PostgreSQL creates B-tree indexes, which is a type of balanced tree data structure. This allows lookups on the index to be made in logarithmic time. When dealing with small tables the gains won't be very noticeable. In fact, PostgreSQL won't use an index during lookup unless the table has enough records to make the overhead of reading the index and then accessing the referenced rows in the actual table worth the extra effort.
+By default PostgreSQL creates B-tree indexes. B-trees are balanced tree data structures that have a logarithmic lookup time. When dealing with small tables the difference between searching through the index or the table directly won't be very noticeable. In fact, PostgreSQL won't use an index during lookup unless the table has enough records to justify the overhead of reading the index and then retrieving the rows separately.
 
-Taking into consideration a theoretical B-tree, these are some of the number of rows a database would need to read in order to execute the previous SELECT query with and without an index:
+If we compared lookup steps for a linear scan with a theoretical B-tree index we would see numbers like below:
 
-| Total Rows | Table Scan Column | Indexed Column |
+| Total Rows | Table Scan Column | B-tree         |
 | ---------- | ----------------- | -------------- |
 | 128        | 128               | 7              |
 | 1024       | 1024              | 10             |
 | 32768      | 32768             | 15             |
 | 1073741824 | 1073741824        | 30             |
 
-As you see, the performance gain become more and more noticeable the larger the dataset.
+The performance improvement is significant, particularly as the number of rows grows. PostgreSQL implementation of the B-tree structure is more complex than this but the order of magnitude of the improvements gives us an idea of why such a structure would improve our SELECT queries.
 
 If Indexes are so great, why isn't every column indexed by default?
 
-Well, an index is only useful if it's kept up to date with the data in the actual table that holds the information. And updating an index is expensive since for every write operation (INSERT, UPDATE, DELETE) on the table all of it's indexes will also need to be updated. The cost of updating an index is not as steep as the cost of looking up data sequentially but it becomes significant when many columns are indexed or the application makes very frequent write operations on a table
-
-| Total Rows | Write Non-Indexed Column | Write Indexed Column | Write Row with 8 Indexed Columns |
-| ---------- | ------------------------ | -------------------- | -------------------------------- |
-| 128        | 1                        | 7                    | 56                               |
-| 1024       | 1                        | 10                   | 80                               |
-| 32768      | 1                        | 15                   | 120                              |
-| 1073741824 | 1                        | 30                   | 240                              |
+Well, an index is only useful if it's kept up to date with the data in the table that actually holds the information. And updating an index is expensive since for every write operation (INSERT, UPDATE, DELETE) on the table all of it's indexes will also need to be updated. The cost of updating an index is not as steep as the cost of looking up data sequentially but it becomes significant when many columns are indexed or write operations are frequent.
 
 Indexes are very powerful tools but they come with their own trade-offs. It's up to the developer to determine where indexes will be useful to the application and where they will become bottlenecks.
 
 ## How to identify indexing opportunities
-
-Identifying when and how to create indexes in a database can be really tricky because they don't depend on technical requirements alone. The roadmap for an application, the projected load if the application grows, the seasonality of it. All of these can affect the decision. There are ways to get started though.
-
-The first objective is to identify SELECT queries that are run often in our application. Those are the first targets for optimization. Ideally we are working with a table that is read from often but seldom written to. A users table in a webapp that holds static information about each user is a good example.
 
 For this example we'll use a sample database with USDA food information. The .sql file to create and populate the database can be downloaded from https://github.com/morenoh149/postgresDBSamples. We'll also be using SeeQR, an open source PostgreSQL analytics tool that I've recently been contributing to. If you'd like to follow along the examples you should have:
 
@@ -88,21 +77,21 @@ For this example we'll use a sample database with USDA food information. The .sq
 - the usda sample database imported into your local PostgreSQL server
 - SeeQR
 
-Let's imagine we are building an application that retrieves the data from the usda database and allows a user to search the records by the food description. We can see that the usda database has a table called **food_des** which contains a **long_desc** column. Using SeeQR we can also see that 4 columns in that table have **NOT NULL** constraints: ndb_no, fdgrp_cd, long_desc and shrt_desc.
+Let's imagine we are building an application that retrieves data from the usda database and allows a user to search the records by the food description. We can see that the usda database has a table called **food_des** which contains a **long_desc** column. That's the column our application will query when searching for a particular item.
 
 ![Table Details](images/table_details.png)
 
-If we wanted to get search for all food items for which the **long_desc** started with _'Cheese'_ we could query the database with the following query:
+If we wanted to get all food items for which the description started with _'Cheese'_ we could query the database with the following query:
 
 ```sql
 SELECT * FROM food_des WHERE long_desc LIKE 'Cheese%';
 ```
 
-If we run that query in SeeQR and take a look at it's execution plan we'll notice that it has a single node with the type **Seq Scan**. That means the databse is scanning through the entire table in order to find all records that satisfy our _WHERE_ condition. This table is not very large so the actual execution time is still very small (this will depend on your system hardware and load when running this test). But if this is the core functionality of our app we can certainly improve on this.
+If we run that query in SeeQR and take a look at it's execution plan we'll notice that it has a single node with the type **Seq Scan**. That means the databse is scanning through the entire table in order to find all records that satisfy our _WHERE_ condition. This table is not very large so the actual execution time is still very small (this will depend on your system hardware and load when running this test). But as our application grows and more items are added to this table, this execution time will progressively grow until it becomes a problem.
 
 ![Select Non-Index](images/select_nonindex.png)
 
-First of all we can check which indexes are already set for this table via psql. If you run the following command you'll notice we don't currently have an index that includes the **long_desc** column:
+First of all we can check which indexes are already set for this table using `psql`. If you run the following command you'll notice we don't currently have an index that includes the **long_desc** column:
 
 ```shell
 \d food_des
@@ -110,26 +99,23 @@ First of all we can check which indexes are already set for this table via psql.
 
 ![psql Indexes](images/psql_indexes.png)
 
-Let's go ahead and check the performance of this query with an index:
+As we saw, an index might allow us to significantly speed up the execution of this query. In order to test our theory, let's first create a working copy of our **usda** database that we can modify. We will use this copy to compare execution times with an index against our **usda** database.
 
-- Let's first create a copy or our **usda** database and connect to it.
-- let's create an index for this column using the following query:
+We can now create an index for the **long_desc** column and run the same query.
 
 ```sql
-CREATE INDEX players_id_index ON players (id);
+CREATE INDEX fooddes_longdesc_index ON food_des (long_desc);
 ```
-
-Now that we have indexed that column, we can run the same query on our copy of the usda database and look at the execution plan.
 
 ![Select Indexed](images/select_index.png)
 
 You'll notice there are two nodes in the Execution Plan tree now: a Bitmap Index Scan ad a Bitmap Heap Scan. The first will search the index we created for strings that start with 'Cheese' and the seconds will retrieve those rows from the table.
 
-If you jump to the comparison view in Seeqr we can easily compare the performances of each query side by side
+If you jump to the comparison view in Seeqr we can easily compare the performances of each query side by side.
 
 ![Compare Selects](images/compare_select.png)
 
-In my particular run the indexed version ran around 2.7 times faster than the original non-indexed one. That might not sound like a lot, but as our app grows and this table is populated with more records this difference would become more and more significant.
+In this particular run the indexed version ran around 2.7 times faster than the original non-indexed one. That might not sound like a lot, but as our app grows and this table is populated with more records this difference would become more and more significant.
 
 Does that mean we should add an index to the production database? Well, that depends on how often we need to write to it. If we follow the same steps to test an insert query on each of that table on each of our databases we'll notice that the insert time rises drastically:
 
@@ -143,7 +129,7 @@ That's where we need to think about the particular application we are working on
 
 It's always a good idea to A/B the performance of an applications queries when deciding to add/remove indexes, and SeeQR and other database management tools make that job a lot easier.
 
-Keep in mind that PostgreSQL has many other mechanisms for optimization that I am ignoring here. You might notice for example if you repeatedly run these queries while testing their execution time, the results may vary. Also, I am not taking caching into consideration since that would warrant an entirely different article. The tests here are aimed to give a rough estimate of the potential gains of indexing a column.
+Keep in mind that PostgreSQL has many other mechanisms for optimization that I am ignoring here. You might notice for example if you repeatedly run these queries while testing their execution time, the results may vary. That's because I am not taking caching into consideration since that would warrant an entirely different article. The tests here are aimed to give a rough estimate of the potential gains of indexing a column.
 
 If you'd like to know more about SeeQR and contribute to it's development, visit it's repository at
 https://github.com/open-source-labs/SeeQR. If you'd like more information about Indexes and the inner workings of PostgreSQL the https://www.postgresql.org/docs/current/ is a great place to start.

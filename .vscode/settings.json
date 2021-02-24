@@ -1,0 +1,11 @@
+{
+  "dimmer.enabled": false,
+  "cSpell.enabled": true,
+  "cSpell.words": [
+    "Postgres",
+    "Postgres's",
+    "VARCHAR",
+    "datapoints",
+    "performant"
+  ]
+}

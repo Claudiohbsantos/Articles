@@ -54,12 +54,12 @@ PostgreSQL creates B-tree indexes by default. B-trees are balanced tree data str
 
 If we compared lookup steps for a linear scan with a theoretical B-tree index we would see numbers like below:
 
-| Total Rows | Table Scan Column | B-tree         |
-| ---------- | ----------------- | -------------- |
-| 128        | 128               | 7              |
-| 1024       | 1024              | 10             |
-| 32768      | 32768             | 15             |
-| 1073741824 | 1073741824        | 30             |
+| Total Rows | Table Scan Column | B-tree |
+| ---------- | ----------------- | ------ |
+| 128        | 128               | 7      |
+| 1024       | 1024              | 10     |
+| 32768      | 32768             | 15     |
+| 1073741824 | 1073741824        | 30     |
 
 The performance improvement is significant, particularly as the number of rows grows. PostgreSQL implementation of the B-tree structure is more complex than this example, but the order of magnitude of the improvements gives us an idea of why such a structure would improve our SELECT queries.
 
@@ -71,7 +71,7 @@ Indexing is a very powerful tool but it comes with its trade-offs. It's up to th
 
 ## How to identify indexing opportunities
 
-For this example we'll use a sample database with USDA food information. The .sql file to create and populate the database can be downloaded from https://github.com/morenoh149/postgresDBSamples. We'll also be using SeeQR, an open source PostgreSQL analytics tool that I've recently been contributing to. If you'd like to follow along the examples you should have:
+For this example we'll use a sample database with USDA food information. The .sql file to create and populate the database can be downloaded from [here](https://github.com/morenoh149/postgresDBSamples). We'll also be using [SeeQR](https://www.theseeqr.io/), an open source PostgreSQL analytics tool that I've recently been contributing to. If you'd like to follow along the examples you should have:
 
 - PostgreSQL installed with psql available in your PATH
 - the usda sample database imported into your local PostgreSQL server
@@ -117,7 +117,7 @@ If you jump to the comparison view in Seeqr we can easily compare the performanc
 
 In this particular run, the indexed version ran around 2.7 times faster than the original non-indexed one. That might not sound like a lot, but as our app grows and this table is populated with more records this difference would become more apparent and significant.
 
-Does that mean we should add an index to the production database? Well, that depends on how often we need to write to it. If we follow the same steps to test an insert query on each table in our databases, we'll notice that the insert time rises drastically: 
+Does that mean we should add an index to the production database? Well, that depends on how often we need to write to it. If we follow the same steps to test an insert query on each table in our databases, we'll notice that the insert time rises drastically:
 
 ![Insert Non-Index](images/insert_nonindex.png)
 
@@ -127,12 +127,12 @@ Does that mean we should add an index to the production database? Well, that dep
 
 That's where we need to think about the particular application we are working on and decide which queries are run most often, which are the most time-sensitive, and where our current bottlenecks are.
 
-It's always a good idea to A/B test the performance of an application's queries when deciding to add/remove indexes. To help make that easier, I recommend using a database management tool, my current favorite being SeeQr. 
+It's always a good idea to A/B test the performance of an application's queries when deciding to add/remove indexes. To help make that easier, I recommend using a database management tool, my current favorite being [SeeQr](https://www.theseeqr.io/).
 
 Keep in mind that PostgreSQL has many other mechanisms for optimization that I am ignoring here. You might notice for example if you repeatedly run these queries while testing their execution time, the results may vary. That's because I am not taking caching into consideration since that would warrant an entirely different article. The tests here are aimed to give a rough estimate of the potential gains of indexing a column.
 
-If you'd like to know more about SeeQR and contribute to it's development, visit it's repository at
-https://github.com/open-source-labs/SeeQR. If you'd like more information about Indexes and the inner workings of PostgreSQL the https://www.postgresql.org/docs/current/ is a great place to start.
+If you'd like to know more about SeeQR and contribute to it's development, visit it's repository in 
+[github](https://github.com/open-source-labs/SeeQR). If you'd like more information about Indexes and the inner workings of PostgreSQL the https://www.postgresql.org/docs/current/ is a great place to start.
 
 ## Other tools worth checking out
 
@@ -140,4 +140,4 @@ https://github.com/open-source-labs/SeeQR. If you'd like more information about 
 - [pev](https://tatiyants.com/pev/#/plans) - online execution plan visualizer
 - [Explain.dalibo.com](https://explain.dalibo.com/) - online execution plan visualizer
 
-*Thanks to Cindy Chau for the editorial help and technical proof-reading*
+_Thanks to Cindy Chau for the editorial help and technical proof-reading_

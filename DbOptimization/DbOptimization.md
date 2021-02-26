@@ -119,10 +119,6 @@ In this particular run, the indexed version ran around 2.7 times faster than the
 
 Does that mean we should add an index to the production database? Well, that depends on how often we need to write to it. If we follow the same steps to test an insert query on each table in our databases, we'll notice that the insert time rises drastically:
 
-![Insert Non-Index](images/insert_nonindex.png)
-
-![Insert Indexed](images/insert_index.png)
-
 ![Compare all](images/compare.png)
 
 That's where we need to think about the particular application we are working on and decide which queries are run most often, which are the most time-sensitive, and where our current bottlenecks are.
